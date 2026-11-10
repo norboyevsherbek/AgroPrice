@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="uz" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroPrice - AI Narxlar Monitoringi</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { 
+                        primary: '#2563eb', 
+                        'primary-dark': '#1d4ed8', 
+                        accent: '#10b981', 
+                        // Yumshoqroq va ochiqroq Dark Mode ranglari
+                        darkbg: '#1e293b',    // Asosiy fon (Slate-800)
+                        darkcard: '#334155'   // Kartochkalar foni (Slate-700)
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        html { scroll-behavior: smooth; }
+        
+        .hero-bg {
+            background-image: linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 0.7)), url('https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1920&q=80');
+            background-size: cover; background-position: center;
+        }
+        
+        .glass-panel { background: rgba(255, 255, 255, 0.90); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(226, 232, 240, 0.8); }
+        
+        /* Dark Mode uchun ochiqroq shisha effekti */
+        .dark .glass-panel { background: rgba(30, 41, 59, 0.85); border-bottom: 1px solid rgba(71, 85, 105, 0.5); }
+        
+        .custom-checkbox input:checked + div { background-color: #2563eb; border-color: #2563eb; color: white; }
+        .dark .custom-checkbox input:checked + div { background-color: #3b82f6; border-color: #3b82f6; color: white;}
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #64748b; }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-darkbg text-slate-800 dark:text-slate-200 antialiased overflow-x-hidden transition-colors duration-300">
+
+    <!-- ================= NAVIGATSIYA ================= -->
+    <nav class="fixed top-0 w-full glass-panel shadow-sm z-50 transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <a href="#" class="flex items-center gap-2 text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                    <i class="fa-solid fa-chart-pie text-primary"></i> Agro<span class="text-primary">Price</span>
+                </a>
+                
+                <div class="flex items-center gap-4 md:gap-6">
+                    <div class="relative">
+                        <button onclick="toggleAlerts()" class="relative p-2 text-slate-500 hover:text-primary dark:text-slate-400 dark:hover:text-blue-400 transition">
+                            <i class="fa-solid fa-bell text-xl"></i>
+                            <span class="absolute top-1 right-1 flex h-3 w-3">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-white dark:border-slate-800"></span>
+                            </span>
+                        </button>
+                        
+                        <div id="alerts-dropdown" class="hidden absolute right-0 mt-3 w-80 bg-white dark:bg-darkcard rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-600 overflow-hidden z-50 transform origin-top-right transition-all">
+                            <div class="p-4 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-100 dark:border-slate-600">
+                                <h3 class="font-bold text-slate-900 dark:text-white">Aqlli Tahlil Xabarlari</h3>
+                            </div>
+                            <div class="p-2 space-y-1 max-h-64 overflow-y-auto">
+                                <div class="p-3 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition flex gap-3 cursor-pointer">
+                                    <div class="text-orange-500 mt-0.5"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">Pomidor narxi oshmoqda</p>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">Toshkent va Samarqandda talab yuqori bo'lgani sababli narx +8% ga oshdi.</p>
+                                    </div>
+                                </div>
+                                <div class="p-3 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition flex gap-3 cursor-pointer">
+                                    <div class="text-green-500 mt-0.5"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">Kartoshka barqarorlashdi</p>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">Yangi hosil kirib kelishi bilan Farg'onada narxlar -5% ga tushdi.</p>
+                                    </div>
+                                </div>
+                                <div class="p-3 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl transition flex gap-3 cursor-pointer">
+                                    <div class="text-blue-500 mt-0.5"><i class="fa-solid fa-robot"></i></div>
+                                    <div>
+                                        <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">AI Bashorati tayyor</p>
+                                        <p class="text-xs text-slate-500 dark:text-slate-400">Kelgusi haftadagi Go'sht narxlari tendensiyasi hisoblab chiqildi.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dark Mode Toggle -->
+                    <button onclick="toggleDarkMode()" id="theme-toggle" class="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition">
+                        <i class="fa-solid fa-moon text-xl" id="theme-icon"></i>
+                    </button>
+                    
+                    <button onclick="openAddModal()" class="bg-primary hover:bg-primary-dark text-white px-5 py-2.5 rounded-full font-semibold flex items-center gap-2 transition shadow-lg shadow-blue-200 dark:shadow-none text-sm">
+                        <i class="fa-solid fa-plus"></i> Yangi ma'lumot
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ================= HERO ================= -->
+    <section id="home" class="hero-bg h-[70vh] flex items-center justify-center mt-10">
+        <div class="text-center px-4 max-w-4xl mt-10">
+            <span class="bg-blue-900/50 text-blue-300 border border-blue-400/50 px-5 py-2 rounded-full text-sm font-bold uppercase tracking-widest mb-6 inline-flex items-center gap-2 backdrop-blur-sm">
+                <i class="fa-solid fa-microchip text-blue-400"></i> AI Data Analytics
+            </span>
+            <h1 class="text-5xl md:text-7xl font-extrabold text-white mb-6 leading-tight drop-shadow-lg">
+                Agro bozorlar pulsini <span class="text-blue-400">kuzating</span>
+            </h1>
+            <p class="text-lg md:text-xl text-slate-300 mb-10 max-w-3xl mx-auto font-light drop-shadow-md">
+                14 ta hududdagi narxlarni taqqoslash, tahlil qilish va sun'iy intellekt yordamida kelajakni bashorat qilish tizimi.
+            </p>
+        </div>
+    </section>
+
+    <!-- ================= ANALITIKA DASHBOARD ================= -->
+    <section id="analytics" class="py-10 px-4 max-w-7xl mx-auto -mt-20 relative z-10">
+        
+        <div class="bg-white dark:bg-darkcard rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-600 p-6 md:p-8 mb-10 transition-colors">
+            
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div>
+                    <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white">Narxlar dinamikasi</h2>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm">Hududlar va mahsulotlar bo'yicha vizual tahlil</p>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-3">
+                    <button onclick="toggleAIPrediction()" id="ai-btn" class="bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition shadow-lg shadow-purple-200 dark:shadow-none flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> AI Bashoratni yoqish
+                    </button>
+
+                    <select id="productFilter" onchange="updateDashboard()" class="bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-bold text-sm rounded-xl px-5 py-2.5 outline-none focus:border-primary transition">
+                        <option value="Pomidor">🍅 Pomidor</option>
+                        <option value="Kartoshka">🥔 Kartoshka</option>
+                        <option value="Piyoz">🧅 Piyoz</option>
+                        <option value="Sabzi">🥕 Sabzi</option>
+                        <option value="Olma">🍎 Olma</option>
+                        <option value="Go'sht">🥩 Mol go'shti</option>
+                    </select>
+                    
+                    <button onclick="exportToCSV()" class="bg-slate-800 dark:bg-slate-600 hover:bg-black dark:hover:bg-slate-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition shadow-md flex items-center gap-2">
+                        <i class="fa-solid fa-file-export"></i> CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- DINAMIK KPI KARTOCHKALAR -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="kpi-cards">
+                <!-- JS orqali to'ldiriladi -->
+            </div>
+
+            <!-- Viloyatlarni tanlash (Checkboxes) -->
+            <div class="mb-8 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-2xl border border-slate-100 dark:border-slate-600">
+                <p class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3"><i class="fa-solid fa-map-location-dot text-primary mr-1"></i> Taqqoslanadigan hududlarni tanlang:</p>
+                <div class="flex flex-wrap gap-2" id="regionFilters">
+                    <!-- JS yordamida yasaladi -->
+                </div>
+            </div>
+
+            <!-- GRAFIK -->
+            <div class="relative h-[450px] w-full">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= MA'LUMOTLAR JADVALI ================= -->
+    <section id="data-table" class="pb-20 px-4 max-w-7xl mx-auto">
+        <div class="bg-white dark:bg-darkcard rounded-3xl shadow-xl border border-slate-100 dark:border-slate-600 overflow-hidden transition-colors">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-600 flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-50/50 dark:bg-slate-800/30">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white"><i class="fa-solid fa-database text-primary mr-2"></i> Katta ma'lumotlar bazasi (Big Data)</h3>
+                <div class="relative w-full md:w-auto">
+                    <input type="text" id="searchTable" onkeyup="searchInTable()" placeholder="Hudud bo'yicha izlash..." class="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-500 bg-white dark:bg-slate-700 rounded-xl text-sm focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 transition-colors">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-slate-400"></i>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="dataTable">
+                    <thead>
+                        <tr class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-600">
+                            <th class="p-5 font-bold">Sana</th>
+                            <th class="p-5 font-bold">Hudud</th>
+                            <th class="p-5 font-bold">Mahsulot</th>
+                            <th class="p-5 font-bold text-right">O'rtacha Narx</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="text-slate-700 dark:text-slate-300 text-sm">
+                        <!-- JS orqali to'ldiriladi -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= NARX KIRITISH MODAL ================= -->
+    <div id="add-modal" class="fixed inset-0 bg-slate-900/60 dark:bg-black/80 z-[1000] hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-darkcard rounded-3xl w-full max-w-md p-8 m-4 shadow-2xl transform transition-all scale-95 opacity-0 relative border border-slate-100 dark:border-slate-600" id="add-content">
+            <button onclick="closeAddModal()" class="absolute top-5 right-5 text-slate-400 hover:text-red-500 dark:hover:text-red-400 text-xl transition"><i class="fa-solid fa-xmark"></i></button>
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-6">Yangi narx kiritish</h2>
+            
+            <form id="priceForm" onsubmit="submitNewPrice(event)">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Mahsulot</label>
+                        <select id="formProduct" class="w-full p-3 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl outline-none focus:border-primary transition" required>
+                            <option value="Pomidor">Pomidor</option>
+                            <option value="Kartoshka">Kartoshka</option>
+                            <option value="Piyoz">Piyoz</option>
+                            <option value="Sabzi">Sabzi</option>
+                            <option value="Olma">Olma</option>
+                            <option value="Go'sht">Mol go'shti</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Hudud</label>
+                        <select id="formRegion" class="w-full p-3 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl outline-none focus:border-primary transition" required></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Narx (so'm)</label>
+                        <input type="number" id="formPrice" class="w-full p-3 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl outline-none focus:border-primary transition" required min="100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Sana</label>
+                        <input type="date" id="formDate" class="w-full p-3 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl outline-none focus:border-primary transition" required>
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3.5 rounded-xl transition mt-6 shadow-lg shadow-blue-200 dark:shadow-none">
+                    Bazaga saqlash
+                </button>
+            </form>
+        </div>
+    </div>
+
+
+    <script>
+        const allRegions = [
+            "Toshkent sh.", "Toshkent v.", "Andijon", "Buxoro", "Farg'ona", "Jizzax", 
+            "Xorazm", "Namangan", "Navoiy", "Qashqadaryo", "Qoraqalpog'iston R.", 
+            "Samarqand", "Sirdaryo", "Surxondaryo"
+        ];
+
+        let priceData = [];
+        const productsList = ["Pomidor", "Kartoshka", "Piyoz", "Sabzi", "Olma", "Go'sht"];
+        const basePrices = { "Pomidor": 12000, "Kartoshka": 5000, "Piyoz": 4000, "Sabzi": 3500, "Olma": 15000, "Go'sht": 85000 };
+        
+        let idCounter = 1;
+        const dates = ['2026-10-15', '2026-10-22', '2026-10-29', '2026-11-05'];
+
+        productsList.forEach(prod => {
+            dates.forEach((date, dateIndex) => {
+                allRegions.forEach(region => {
+                    let randomFluctuation = (Math.random() * 0.3) - 0.15; 
+                    let trend = dateIndex * 0.04; 
+                    let finalPrice = Math.round(basePrices[prod] * (1 + randomFluctuation + trend));
+                    finalPrice = Math.round(finalPrice / 100) * 100;
+                    priceData.push({ id: idCounter++, date: date, region: region, product: prod, price: finalPrice });
+                });
+            });
+        });
+
+        let myChart = null;
+        let isAIPredictionActive = false; 
+        let isDarkMode = false; 
+
+        function initUI() {
+            const filterContainer = document.getElementById('regionFilters');
+            const formRegionSelect = document.getElementById('formRegion');
+            
+            allRegions.forEach((region) => {
+                formRegionSelect.innerHTML += `<option value="${region}">${region}</option>`;
+                
+                let isChecked = (region === 'Toshkent sh.' || region === 'Samarqand' || region === 'Farg\'ona') ? 'checked' : '';
+                
+                filterContainer.innerHTML += `
+                    <label class="custom-checkbox cursor-pointer">
+                        <input type="checkbox" class="hidden region-cb" value="${region}" ${isChecked} onchange="updateDashboard()">
+                        <div class="px-4 py-1.5 rounded-full border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-semibold transition-all hover:bg-slate-100 dark:hover:bg-slate-600 select-none bg-white dark:bg-slate-700/50">
+                            ${region}
+                        </div>
+                    </label>
+                `;
+            });
+        }
+
+        function getSelectedRegions() {
+            const checkboxes = document.querySelectorAll('.region-cb');
+            let selected = [];
+            checkboxes.forEach(cb => { if(cb.checked) selected.push(cb.value); });
+            if(selected.length === 0) { checkboxes[0].checked = true; selected.push(checkboxes[0].value); }
+            return selected;
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth()+1).toString().padStart(2, '0')}.${d.getFullYear()}`;
+        }
+
+        function updateKPIs(filteredData, selectedRegions) {
+            const kpiContainer = document.getElementById('kpi-cards');
+            if(!filteredData.length) return;
+
+            const lastDate = dates[dates.length-1];
+            const currentData = filteredData.filter(d => d.date === lastDate && selectedRegions.includes(d.region));
+            
+            if(!currentData.length) return;
+
+            let sum = 0;
+            let min = currentData[0];
+            let max = currentData[0];
+
+            currentData.forEach(d => {
+                sum += d.price;
+                if(d.price < min.price) min = d;
+                if(d.price > max.price) max = d;
+            });
+            let avgPrice = Math.round(sum / currentData.length);
+
+            kpiContainer.innerHTML = `
+                <div class="bg-blue-50 dark:bg-slate-700/40 p-5 rounded-2xl border border-blue-100 dark:border-slate-600 flex flex-col justify-center transition-colors">
+                    <p class="text-xs text-blue-600 dark:text-blue-400 font-bold uppercase mb-1">O'rtacha Narx</p>
+                    <p class="text-2xl font-black text-slate-900 dark:text-white">${avgPrice.toLocaleString()} <span class="text-sm font-normal text-slate-500 dark:text-slate-400">so'm</span></p>
+                </div>
+                <div class="bg-green-50 dark:bg-slate-700/40 p-5 rounded-2xl border border-green-100 dark:border-slate-600 flex flex-col justify-center transition-colors">
+                    <p class="text-xs text-green-600 dark:text-green-400 font-bold uppercase mb-1">Eng arzon hudud</p>
+                    <p class="text-xl font-bold text-slate-900 dark:text-white">${min.region}</p>
+                    <p class="text-sm text-green-700 dark:text-green-400 font-semibold">${min.price.toLocaleString()} so'm</p>
+                </div>
+                <div class="bg-red-50 dark:bg-slate-700/40 p-5 rounded-2xl border border-red-100 dark:border-slate-600 flex flex-col justify-center transition-colors">
+                    <p class="text-xs text-red-500 dark:text-red-400 font-bold uppercase mb-1">Eng qimmat hudud</p>
+                    <p class="text-xl font-bold text-slate-900 dark:text-white">${max.region}</p>
+                    <p class="text-sm text-red-700 dark:text-red-400 font-semibold">${max.price.toLocaleString()} so'm</p>
+                </div>
+                <div class="bg-purple-50 dark:bg-slate-700/40 p-5 rounded-2xl border border-purple-100 dark:border-slate-600 flex flex-col justify-center relative overflow-hidden transition-colors">
+                    <i class="fa-solid fa-robot absolute -right-2 -bottom-2 text-5xl text-purple-200 dark:text-slate-600/50"></i>
+                    <p class="text-xs text-purple-600 dark:text-purple-400 font-bold uppercase mb-1 z-10">Tahlil etilgan yozuvlar</p>
+                    <p class="text-2xl font-black text-slate-900 dark:text-white z-10">${filteredData.length}</p>
+                </div>
+            `;
+        }
+
+        function toggleAIPrediction() {
+            isAIPredictionActive = !isAIPredictionActive;
+            const btn = document.getElementById('ai-btn');
+            
+            if(isAIPredictionActive) {
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Tahlil qilinmoqda...`;
+                setTimeout(() => {
+                    btn.innerHTML = `<i class="fa-solid fa-check-double"></i> AI Bashorat faol`;
+                    btn.classList.replace('from-purple-500', 'from-emerald-500');
+                    btn.classList.replace('to-indigo-500', 'to-teal-500');
+                    updateDashboard();
+                }, 800); 
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> AI Bashoratni yoqish`;
+                btn.classList.replace('from-emerald-500', 'from-purple-500');
+                btn.classList.replace('to-teal-500', 'to-indigo-500');
+                updateDashboard();
+            }
+        }
+
+        function updateDashboard() {
+            const selectedProduct = document.getElementById('productFilter').value;
+            const selectedRegions = getSelectedRegions();
+            
+            const filteredData = priceData.filter(item => 
+                item.product === selectedProduct && selectedRegions.includes(item.region)
+            );
+
+            updateKPIs(filteredData, selectedRegions);
+            renderChart(filteredData, selectedRegions);
+            renderTable(filteredData);
+        }
+
+        function renderChart(filteredData, selectedRegions) {
+            let labels = [...new Set(filteredData.map(item => item.date))].sort();
+            const actualDataLength = labels.length;
+
+            if (isAIPredictionActive) {
+                labels.push('2026-11-12'); 
+            }
+
+            const colors = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#f43f5e'];
+            
+            const datasets = selectedRegions.map((region) => {
+                const colorIndex = allRegions.indexOf(region) % colors.length;
+                let dataPoints = [];
+                let lastActualPrice = 0;
+
+                for(let i=0; i<actualDataLength; i++) {
+                    const record = filteredData.find(d => d.date === labels[i] && d.region === region);
+                    if(record) {
+                        dataPoints.push(record.price);
+                        lastActualPrice = record.price;
+                    } else {
+                        dataPoints.push(null);
+                    }
+                }
+
+                if (isAIPredictionActive) {
+                    let predictedPrice = Math.round(lastActualPrice * (1 + (Math.random() * 0.1 - 0.03)));
+                    predictedPrice = Math.round(predictedPrice / 100) * 100;
+                    dataPoints.push(predictedPrice);
+                }
+
+                return {
+                    label: region,
+                    data: dataPoints,
+                    borderColor: colors[colorIndex],
+                    backgroundColor: colors[colorIndex],
+                    borderWidth: 3,
+                    pointBackgroundColor: isDarkMode ? '#334155' : '#ffffff',
+                    pointBorderColor: colors[colorIndex],
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 7,
+                    tension: 0.3,
+                    spanGaps: true,
+                    segment: {
+                        borderDash: ctx => ctx.p0DataIndex >= actualDataLength - 1 ? [6, 6] : undefined,
+                        borderColor: ctx => ctx.p0DataIndex >= actualDataLength - 1 ? colors[colorIndex] + '80' : colors[colorIndex] 
+                    }
+                };
+            });
+
+            if(myChart) myChart.destroy();
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            const textColor = isDarkMode ? '#cbd5e1' : '#64748b';
+            const gridColor = isDarkMode ? '#475569' : '#f1f5f9'; // Grid chiziqlari ham ochiqroq qilindi
+
+            let displayLabels = labels.map((d, i) => i >= actualDataLength ? "✨ " + formatDate(d) + " (AI)" : formatDate(d));
+
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: displayLabels, datasets: datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: textColor, usePointStyle: true, boxWidth: 8, font: { family: 'Inter', weight: '600', size: 12 } } },
+                        tooltip: {
+                            backgroundColor: isDarkMode ? 'rgba(51, 65, 85, 0.95)' : 'rgba(15, 23, 42, 0.9)',
+                            titleFont: { family: 'Inter', size: 13 }, bodyFont: { family: 'Inter', size: 14, weight: 'bold' }, padding: 12, cornerRadius: 8,
+                            callbacks: {
+                                label: function(c) {
+                                    let lbl = c.dataset.label + ': ' + new Intl.NumberFormat('uz-UZ').format(c.parsed.y) + " so'm";
+                                    if(c.dataIndex >= actualDataLength) lbl += ' (AI)';
+                                    return lbl;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { grid: { color: gridColor }, ticks: { color: textColor, font: { family: 'Inter' }, callback: v => v.toLocaleString() + " s" } },
+                        x: { grid: { display: false }, ticks: { color: textColor, font: { family: 'Inter' } } }
+                    },
+                    interaction: { mode: 'index', intersect: false }
+                }
+            });
+        }
+
+        // ================= DARK MODE =================
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            
+            if(isDarkMode) {
+                html.classList.add('dark');
+                icon.classList.replace('fa-moon', 'fa-sun');
+                icon.classList.replace('text-slate-500', 'text-yellow-400');
+            } else {
+                html.classList.remove('dark');
+                icon.classList.replace('fa-sun', 'fa-moon');
+                icon.classList.replace('text-yellow-400', 'text-slate-500');
+            }
+            updateDashboard(); 
+        }
+
+        function toggleAlerts() {
+            const dropdown = document.getElementById('alerts-dropdown');
+            dropdown.classList.toggle('hidden');
+        }
+        
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('alerts-dropdown');
+            const bell = dropdown.previousElementSibling;
+            if (!dropdown.contains(event.target) && !bell.contains(event.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        function renderTable(filteredData) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            const sortedData = [...filteredData].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            sortedData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-100 dark:border-slate-700/50 hover:bg-blue-50/50 dark:hover:bg-slate-700/50 transition-colors';
+                tr.innerHTML = `
+                    <td class="p-4 md:p-5 font-medium text-slate-500 dark:text-slate-400">${formatDate(row.date)}</td>
+                    <td class="p-4 md:p-5"><span class="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1 rounded-md text-xs font-bold transition-colors">${row.region}</span></td>
+                    <td class="p-4 md:p-5 font-semibold text-slate-700 dark:text-slate-200">${row.product}</td>
+                    <td class="p-4 md:p-5 font-extrabold text-slate-900 dark:text-white text-right text-base md:text-lg">${row.price.toLocaleString()} <span class="text-xs text-slate-400 font-normal">so'm</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function searchInTable() {
+            const filter = document.getElementById("searchTable").value.toUpperCase();
+            const trs = document.getElementById("dataTable").getElementsByTagName("tr");
+            for (let i = 1; i < trs.length; i++) {
+                const textContent = trs[i].textContent || trs[i].innerText;
+                trs[i].style.display = textContent.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+            }
+        }
+
+        function openAddModal() {
+            document.getElementById('formDate').valueAsDate = new Date();
+            const modal = document.getElementById('add-modal');
+            const content = document.getElementById('add-content');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        }
+
+        function closeAddModal() {
+            const modal = document.getElementById('add-modal');
+            const content = document.getElementById('add-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function submitNewPrice(e) {
+            e.preventDefault();
+            const product = document.getElementById('formProduct').value;
+            const region = document.getElementById('formRegion').value;
+            const price = parseInt(document.getElementById('formPrice').value);
+            const date = document.getElementById('formDate').value;
+            
+            priceData.push({ id: priceData.length + 1, date: date, region: region, product: product, price: price });
+            
+            const checkboxes = document.querySelectorAll('.region-cb');
+            checkboxes.forEach(cb => { if(cb.value === region && !cb.checked) cb.checked = true; });
+            
+            document.getElementById('productFilter').value = product;
+            
+            updateDashboard();
+            closeAddModal();
+            document.getElementById('priceForm').reset();
+        }
+
+        function exportToCSV() {
+            const selectedProduct = document.getElementById('productFilter').value;
+            const selectedRegions = getSelectedRegions();
+            const exportData = priceData.filter(item => item.product === selectedProduct && selectedRegions.includes(item.region));
+            
+            let csvContent = "data:text/csv;charset=utf-8,Sana,Hudud,Mahsulot,Narx(so'm)\n";
+            exportData.forEach(row => { csvContent += `${row.date},${row.region},${row.product},${row.price}\n`; });
+
+            const link = document.createElement("a");
+            link.href = encodeURI(csvContent);
+            link.download = `agroprice_${selectedProduct.toLowerCase()}_analitika.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        window.onload = () => {
+            initUI();
+            updateDashboard();
+        };
+    </script>
+</body>
+</html>
